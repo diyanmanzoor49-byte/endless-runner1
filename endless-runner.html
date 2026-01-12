@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Endless Runner</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #222;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+        user-select: none;
+    }
+
+    #game {
+        position: relative;
+        width: 800px;
+        height: 300px;
+        background: linear-gradient(#87ceeb, #e0f6ff);
+        overflow: hidden;
+        border: 3px solid white;
+    }
+
+    #ground {
+        position: absolute;
+        bottom: 0;
+        height: 50px;
+        width: 100%;
+        background: #4caf50;
+    }
+
+    #player {
+        position: absolute;
+        bottom: 50px;
+        left: 80px;
+        width: 40px;
+        height: 40px;
+        background: #ff5722;
+        border-radius: 5px;
+    }
+
+    .obstacle {
+        position: absolute;
+        bottom: 50px;
+        width: 30px;
+        height: 50px;
+        background: #000;
+    }
+
+    #score {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 20px;
+        color: white;
+    }
+
+    #gameOver {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        color: white;
+    }
+
+    #gameOver button {
+        padding: 10px 20px;
+        font-size: 16px;
+        border: none;
+        background: #ff5722;
+        color: white;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+
+    /* Mobile hint */
+    #hint {
+        position: absolute;
+        bottom: 60px;
+        right: 10px;
+        font-size: 14px;
+        color: white;
+        opacity: 0.8;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="game">
+    <div id="score">Score: 0</div>
+    <div id="player"></div>
+    <div id="ground"></div>
+    <div id="hint">Tap / Space / ↑</div>
+
+    <div id="gameOver">
+        <h1>Game Over</h1>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+</div>
+
+<script>
+/* =======================
+   BASIC GAME VARIABLES
+======================= */
+const player = document.getElementById("player");
+const game = document.getElementById("game");
+const scoreText = document.getElementById("score");
+const gameOverScreen = document.getElementById("gameOver");
+
+let isJumping = false;
+let position = 0;
+let gravity = 0.9;
+let score = 0;
+let gameRunning = true;
+
+/* =======================
+   SOUND EFFECTS (NO FILES)
+   Using Web Audio API
+======================= */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === "jump") {
+        oscillator.frequency.value = 600;
+        gain.gain.value = 0.2;
+    } else if (type === "hit") {
+        oscillator.frequency.value = 150;
+        gain.gain.value = 0.4;
+    }
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.15);
+}
+
+/* =======================
+   JUMP FUNCTION
+======================= */
+function jump() {
+    if (isJumping || !gameRunning) return;
+
+    playSound("jump");
+    isJumping = true;
+    let jumpHeight = 0;
+
+    const upInterval = setInterval(() => {
+        if (jumpHeight >= 120) {
+            clearInterval(upInterval);
+
+            const downInterval = setInterval(() => {
+                if (jumpHeight <= 0) {
+                    clearInterval(downInterval);
+                    isJumping = false;
+                }
+                jumpHeight -= 5;
+                position -= 5;
+                position *= gravity;
+                player.style.bottom = position + 50 + "px";
+            }, 20);
+        }
+
+        jumpHeight += 5;
+        position += 5;
+        player.style.bottom = position + 50 + "px";
+    }, 20);
+}
+
+/* =======================
+   KEYBOARD CONTROLS
+======================= */
+document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" || e.code === "ArrowUp") {
+        jump();
+    }
+});
+
+/* =======================
+   MOBILE TOUCH CONTROLS
+======================= */
+game.addEventListener("touchstart", () => {
+    jump();
+});
+
+/* =======================
+   CREATE OBSTACLES
+======================= */
+function createObstacle() {
+    if (!gameRunning) return;
+
+    const obstacle = document.createElement("div");
+    obstacle.classList.add("obstacle");
+    game.appendChild(obstacle);
+
+    let obstaclePosition = 800;
+    obstacle.style.left = obstaclePosition + "px";
+
+    const moveInterval = setInterval(() => {
+        if (!gameRunning) {
+            clearInterval(moveInterval);
+            return;
+        }
+
+        obstaclePosition -= 5;
+        obstacle.style.left = obstaclePosition + "px";
+
+        // Collision detection
+        if (
+            obstaclePosition > 80 &&
+            obstaclePosition < 120 &&
+            position < 40
+        ) {
+            gameOver();
+            clearInterval(moveInterval);
+        }
+
+        if (obstaclePosition < -30) {
+            clearInterval(moveInterval);
+            obstacle.remove();
+        }
+    }, 20);
+
+    const randomTime = Math.random() * 2000 + 1000;
+    setTimeout(createObstacle, randomTime);
+}
+
+/* =======================
+   SCORE SYSTEM
+======================= */
+setInterval(() => {
+    if (gameRunning) {
+        score++;
+        scoreText.textContent = "Score: " + score;
+    }
+}, 100);
+
+/* =======================
+   GAME OVER
+======================= */
+function gameOver() {
+    playSound("hit");
+    gameRunning = false;
+    gameOverScreen.style.display = "flex";
+}
+
+/* =======================
+   RESTART
+======================= */
+function restartGame() {
+    location.reload();
+}
+
+// Start game
+createObstacle();
+</script>
+
+</body>
+</html>
